@@ -13,7 +13,8 @@ is ordinary generated assistant text.
 
 ## Quick start
 
-SSH to Perlmutter and clone into scratch. Replace `<nersc-account>` below.
+SSH to Perlmutter and clone into scratch. The interactive allocation below uses
+account `m4999` and requests one GPU for one hour.
 Use a dedicated Conda environment named `verl-spider` for this project; your
 existing `sysml` environment is not modified. The scripts load the Conda module
 and activate the project environment automatically.
@@ -24,17 +25,21 @@ git clone https://github.com/hom-cv/verl-spider.git
 cd verl-spider
 
 # Request an interactive allocation.
-salloc --account=<nersc-account> --constraint='gpu&hbm80g' \
-  --nodes=1 --ntasks=1 --cpus-per-task=128 --gpus-per-node=4 \
-  --qos=interactive --time=01:00:00
+salloc --nodes 1 --qos interactive --time 01:00:00 --constraint gpu --gpus 1 --account m4999
 
 # One-time setup and downloads on the allocated node.
 # Creates the verl-spider Conda environment with Python 3.10 if missing.
 srun --ntasks=1 --cpu-bind=none bash scripts/setup.sh --prepare
 
-# Launch the experiment.
+# Current launcher requires four GPUs; this will reject the one-GPU allocation.
+# Adapt the launcher for one GPU before using this command with the allocation above.
 srun --ntasks=1 --cpu-bind=none bash scripts/run.sh trace
 ```
+
+**Current limitation:** `scripts/run.sh` checks for four visible GPUs, uses tensor
+parallelism of two, and configures four trainer GPUs. The one-GPU allocation above
+works for setup/preparation, but cannot yet run this launcher. A one-GPU launch
+configuration and its memory requirements still need to be implemented and tested.
 
 `setup.sh --prepare` also runs `prepare.py`; omitting `--prepare` installs only.
 Use `bash scripts/prepare.sh` to download/prepare later without manually activating
@@ -59,7 +64,7 @@ is controlled by your Conda configuration. No nested Python virtualenv is create
 Alternatively submit a batch job from the repository root:
 
 ```bash
-sbatch --account=<nersc-account> scripts/perlmutter.sbatch
+sbatch --account=m4999 scripts/perlmutter.sbatch
 ```
 
 Setup and preparation need network access; GPU computation runs inside Slurm.
@@ -165,7 +170,7 @@ Record the SQLite/environment version and database hash for comparisons.
 srun --ntasks=1 --cpu-bind=none bash scripts/run.sh grpo
 
 # Or submit a batch job:
-sbatch --account=<nersc-account> --export=ALL,MODE=grpo scripts/perlmutter.sbatch
+sbatch --account=m4999 --export=ALL,MODE=grpo scripts/perlmutter.sbatch
 ```
 
 This validates first, then runs one GRPO step with four prompts and four rollouts
