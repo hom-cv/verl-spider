@@ -4,6 +4,12 @@ from spider_trace.prompts import TOOL_PROTOCOL, with_tool_protocol
 
 
 class PromptTests(unittest.TestCase):
+    def test_protocol_requires_generated_sql_in_real_call(self):
+        self.assertIn("EXACT SQL you generated", TOOL_PROTOCOL)
+        self.assertIn("arguments.sql", TOOL_PROTOCOL)
+        self.assertIn('"name":"execute_sql"', TOOL_PROTOCOL)
+        self.assertIn("wait for the actual tool result", TOOL_PROTOCOL)
+
     def test_upgrades_existing_data_without_mutation(self):
         original = [{"role": "system", "content": "SQL instructions"},
                     {"role": "user", "content": "Count singers"}]

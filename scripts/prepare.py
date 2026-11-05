@@ -9,8 +9,8 @@ from pathlib import Path
 from datasets import Dataset, load_dataset
 from huggingface_hub import HfApi, snapshot_download
 
-from spider_trace.sql import connect, execute_query, find_validation_database_root
 from spider_trace.prompts import TOOL_PROTOCOL
+from spider_trace.sql import connect, execute_query, find_validation_database_root
 
 SYSTEM = """You are a SQL assistant. Solve the question using the supplied SQLite schema.
 Explain your plan briefly, then call execute_sql to test your query before submitting.

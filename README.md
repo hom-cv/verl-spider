@@ -11,7 +11,7 @@ Turn and token limits can terminate a trajectory earlier. Multiple calls are
 allowed, not forced. Qwen2.5 has no Qwen3 `enable_thinking` mode: any explanation
 is ordinary generated assistant text.
 
-The `sql-tools-v2` prompt explicitly requires a real `<tool_call>` before the
+The `sql-tools-v3` prompt explicitly requires the generated SQL in a real `<tool_call>` before the
 final SQL answer and shows the JSON syntax. The agent applies this instruction
 at runtime, including to existing `mini.parquet` files, so no re-download or
 preparation is needed after updating. The effective prompt and its version are
