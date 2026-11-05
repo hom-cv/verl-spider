@@ -1,0 +1,9 @@
+.venv/
+.deps/
+data/
+models/
+runs/
+__pycache__/
+*.pyc
+*.egg-info/
+slurm-*.out

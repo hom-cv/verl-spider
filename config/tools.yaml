@@ -1,0 +1,17 @@
+tools:
+  - class_name: spider_trace.tool.SQLiteTool
+    config:
+      type: native
+    tool_schema:
+      type: function
+      function:
+        name: execute_sql
+        description: Execute one read-only SQLite query against this question's database. Returns columns, rows, errors and a truncation flag. Use deterministic SQL and explicit ORDER BY with unique tie breakers for LIMIT. Results are capped at 100 rows.
+        parameters:
+          type: object
+          properties:
+            sql:
+              type: string
+              description: A single SELECT or WITH query.
+          required: [sql]
+          additionalProperties: false

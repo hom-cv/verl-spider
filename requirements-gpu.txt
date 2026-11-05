@@ -1,0 +1,14 @@
+# Release-pinned core stack; setup records a full pip freeze after resolution.
+verl[vllm] @ git+https://github.com/verl-project/verl.git@v0.6.1
+vllm==0.10.0
+torch==2.7.1
+transformers==4.55.4
+ray[default]==2.48.0
+numpy==1.26.4
+tensordict==0.8.3
+torchdata==0.11.0
+peft==0.17.1
+datasets==3.6.0
+pyarrow==20.0.0
+huggingface-hub==0.34.4
+mlflow==2.22.1

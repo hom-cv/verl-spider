@@ -1,0 +1,2 @@
+- name: spider_agent
+  _target_: spider_trace.agent.TracedSQLAgent
