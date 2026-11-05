@@ -8,6 +8,17 @@ from pathlib import Path
 FUNCTIONS = set("abs avg coalesce count ifnull instr length like lower ltrim max min nullif replace round rtrim substr substring sum total trim typeof upper".split())
 
 
+def find_validation_database_root(destination, db_id):
+    """Use Spider's database/ split, excluding the separate test_database/ copy."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", db_id):
+        raise ValueError("Invalid database ID")
+    candidates = [p for p in Path(destination).rglob(f"{db_id}.sqlite")
+                  if p.parent.name == db_id and p.parent.parent.name == "database"]
+    if len(candidates) != 1:
+        raise ValueError(f"Expected one validation database/{db_id}/{db_id}.sqlite, found {candidates}")
+    return candidates[0].parent.parent
+
+
 def database_path(root, db_id):
     if not re.fullmatch(r"[A-Za-z0-9_-]+", db_id):
         raise ValueError("Invalid database ID")

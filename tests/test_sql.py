@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from spider_trace.reward import compute_score
-from spider_trace.sql import database_path, execute_query
+from spider_trace.sql import database_path, execute_query, find_validation_database_root
 
 
 class SQLTests(unittest.TestCase):
@@ -47,6 +47,16 @@ class SQLTests(unittest.TestCase):
     def test_path_traversal(self):
         with self.assertRaises(ValueError):
             database_path(self.root, "../tiny")
+
+    def test_archive_split_selection(self):
+        for split in ("database", "test_database"):
+            folder = self.root / "spider_data" / split / "tiny"
+            folder.mkdir(parents=True)
+            (folder / "tiny.sqlite").touch()
+        self.assertEqual(find_validation_database_root(self.root, "tiny"),
+                         self.root / "spider_data" / "database")
+        with self.assertRaises(ValueError):
+            find_validation_database_root(self.root, "missing")
 
     def test_reward_duplicates_order_and_truncation(self):
         with patch.dict(os.environ, SPIDER_DB_ROOT=str(self.root)):

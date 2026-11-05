@@ -9,7 +9,7 @@ from pathlib import Path
 from datasets import Dataset, load_dataset
 from huggingface_hub import HfApi, snapshot_download
 
-from spider_trace.sql import connect, execute_query
+from spider_trace.sql import connect, execute_query, find_validation_database_root
 
 SYSTEM = """You are a SQL assistant. Solve the question using the supplied SQLite schema.
 Explain your plan briefly, then call execute_sql to test your query before submitting.
@@ -60,10 +60,7 @@ def main():
                 if not target.is_relative_to(destination):
                     raise ValueError("Unsafe archive path")
             z.extractall(destination)
-        candidates = list(destination.rglob(f"{args.db_id}.sqlite"))
-        if len(candidates) != 1:
-            raise ValueError(f"Expected one SQLite file for {args.db_id}, found {candidates}")
-        dbroot = candidates[0].parent.parent
+        dbroot = find_validation_database_root(destination, args.db_id)
     dbpath = dbroot / args.db_id / f"{args.db_id}.sqlite"
     with connect(dbpath) as conn:
         schema = "\n".join(row[0] for row in conn.execute(
