@@ -1,4 +1,36 @@
 tools:
+  - class_name: spider_trace.tool.ListTablesTool
+    config:
+      type: native
+    tool_schema:
+      type: function
+      function:
+        name: list_tables
+        description: Discover available table names in the question's SQLite database. No arguments. Returns names in sorted order.
+        parameters:
+          type: object
+          properties: {}
+          required: []
+          additionalProperties: false
+  - class_name: spider_trace.tool.GetTableSchemaTool
+    config:
+      type: native
+    tool_schema:
+      type: function
+      function:
+        name: get_table_schema
+        description: Get CREATE TABLE definitions including columns and declared primary and foreign keys for tables discovered with list_tables. Accepts 1 to 10 names.
+        parameters:
+          type: object
+          properties:
+            table_names:
+              type: array
+              items:
+                type: string
+              minItems: 1
+              maxItems: 10
+          required: [table_names]
+          additionalProperties: false
   - class_name: spider_trace.tool.SQLiteTool
     config:
       type: native

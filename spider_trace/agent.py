@@ -4,15 +4,16 @@ from uuid import uuid4
 from verl.experimental.agent_loop.tool_agent_loop import ToolAgentLoop
 
 from spider_trace.events import emit, trajectory
-from spider_trace.prompts import PROMPT_VERSION, with_tool_protocol
+from spider_trace.exploration import PROMPT_VERSION, exploration_prompt, tool_bindings
 
 
 class TracedSQLAgent(ToolAgentLoop):
     async def run(self, sampling_params, **kwargs):
-        kwargs["raw_prompt"] = with_tool_protocol(kwargs["raw_prompt"])
+        kwargs["raw_prompt"] = exploration_prompt(kwargs["raw_prompt"])
         token = trajectory.set(uuid4().hex)
         start = time.perf_counter()
         info = kwargs.get("extra_info", {})
+        kwargs["tools_kwargs"] = tool_bindings(info["db_id"])
         emit("start", prompt_version=PROMPT_VERSION,
              sample_index=int(info.get("index", -1)), db_id=info.get("db_id"),
              prompt=list(kwargs["raw_prompt"]), sampling=dict(sampling_params))

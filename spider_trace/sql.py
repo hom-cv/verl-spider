@@ -33,6 +33,35 @@ def connect(path):
     return sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
 
 
+def list_tables(path):
+    conn = connect(path)
+    try:
+        rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table' "
+                            "AND name NOT LIKE 'sqlite_%' ORDER BY name").fetchall()
+        return {"ok": True, "tables": [row[0] for row in rows]}
+    finally:
+        conn.close()
+
+
+def get_table_schema(path, table_names):
+    if (not isinstance(table_names, list) or not 1 <= len(table_names) <= 10
+            or any(not isinstance(name, str) or not name or len(name) > 256
+                   for name in table_names)):
+        return {"ok": False, "error": "Provide table_names as 1 to 10 nonempty table names"}
+    conn = connect(path)
+    try:
+        definitions = []
+        for name in sorted(set(table_names)):
+            row = conn.execute("SELECT name, sql FROM sqlite_master WHERE type='table' "
+                               "AND name NOT LIKE 'sqlite_%' AND name = ?", (name,)).fetchone()
+            if row is None:
+                return {"ok": False, "error": f"Unknown table: {name}"}
+            definitions.append({"name": row[0], "create_sql": row[1]})
+        return {"ok": True, "tables": definitions}
+    finally:
+        conn.close()
+
+
 def _authorize(action, arg1, arg2, database, source):
     if action in (sqlite3.SQLITE_SELECT, sqlite3.SQLITE_READ, sqlite3.SQLITE_RECURSIVE):
         return sqlite3.SQLITE_OK

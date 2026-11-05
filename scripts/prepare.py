@@ -9,17 +9,9 @@ from pathlib import Path
 from datasets import Dataset, load_dataset
 from huggingface_hub import HfApi, snapshot_download
 
-from spider_trace.prompts import TOOL_PROTOCOL
-from spider_trace.sql import connect, execute_query, find_validation_database_root
+from spider_trace.exploration import SYSTEM, tool_bindings
+from spider_trace.sql import execute_query, find_validation_database_root
 
-SYSTEM = """You are a SQL assistant. Solve the question using the supplied SQLite schema.
-Explain your plan briefly, then call execute_sql to test your query before submitting.
-Inspect the returned rows or errors; revise and call the tool again when necessary.
-Use one read-only query per call, deterministic expressions, and explicit ORDER BY
-with unique tie breakers when selecting a limited number of rows. Do not use random
-or time functions. End with your answer query in <final_sql>...</final_sql>.
-Do not invent tool results. You may make at most five tool calls."""
-SYSTEM += "\n\n" + TOOL_PROTOCOL
 
 
 def main():
@@ -64,9 +56,6 @@ def main():
             z.extractall(destination)
         dbroot = find_validation_database_root(destination, args.db_id)
     dbpath = dbroot / args.db_id / f"{args.db_id}.sqlite"
-    with connect(dbpath) as conn:
-        schema = "\n".join(row[0] for row in conn.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"))
     raw = load_dataset("xlangai/spider", revision=sources["dataset_revision"], split="validation")
     rows = []
     for index, item in enumerate(raw):
@@ -77,12 +66,12 @@ def main():
             continue
         rows.append({"data_source": "spider_smoke", "agent_name": "spider_agent", "ability": "sql",
                      "prompt": [{"role": "system", "content": SYSTEM},
-                                {"role": "user", "content": f"Schema:\n{schema}\n\nQuestion: {item['question']}"}],
+                                {"role": "user", "content": f"Question: {item['question']}"}],
                      "reward_model": {"style": "rule", "ground_truth": json.dumps({
                          "db_id": args.db_id, "sql": item["query"],
                          "ordered": bool(re.search(r"\border\s+by\b", item["query"], re.I))})},
                      "extra_info": {"index": index, "db_id": args.db_id, "need_tools_kwargs": True,
-                                    "tools_kwargs": {"execute_sql": {"create_kwargs": {"db_id": args.db_id}}}}})
+                                    "tools_kwargs": tool_bindings(args.db_id)}})
         if len(rows) >= args.limit:
             break
     if not rows:

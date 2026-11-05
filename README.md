@@ -6,19 +6,43 @@ revise SQL, and submit a final query. JSONL files preserve every assistant turn,
 executed SQL, returned result, elapsed time, and the complete token trajectory.
 
 Default: 10 validation questions from `concert_singer`, two sampled rollouts per
-question, up to five executed calls and a sixth assistant turn for the answer.
+question, up to eleven tool calls and a twelfth assistant turn for the answer.
 Turn and token limits can terminate a trajectory earlier. Multiple calls are
 allowed, not forced. Qwen2.5 has no Qwen3 `enable_thinking` mode: any explanation
 is ordinary generated assistant text.
 
-The `sql-tools-v3` prompt explicitly requires the generated SQL in a real `<tool_call>` before the
-final SQL answer and shows the JSON syntax. The agent applies this instruction
-at runtime, including to existing `mini.parquet` files, so no re-download or
-preparation is needed after updating. The effective prompt and its version are
-recorded in start events. This is a prompted tool-use smoke test, not enforced
-decoding: a model can still skip the tool, and the inspector rejects runs with
-zero executed tools. No SQL is automatically executed from a final answer and
-no repeated calls are inserted to manufacture cache hits.
+The `sql-explore-v4` prompt supplies only the question, not the actual database
+schema. The tools are `list_tables`, `get_table_schema(table_names)`, and
+`execute_sql(sql)`. The discovery tools return sorted names and CREATE TABLE
+definitions from the same read-only database. All tools are bound to the sample's
+database; the model cannot choose a filesystem path.
+
+The prompt demonstrates discovery, a query, a real-result message, and a final
+answer, adapting the interaction structure of the
+[VerlTool SkySQL prompt](https://github.com/TIGER-AI-Lab/verl-tool/blob/main/examples/data_preprocess/skysql/sql.py).
+Our format remains `<tool_call>` JSON and `<final_sql>`, not their `<sql>` and
+`<solution>` tags. The example observations are clearly labeled demonstrations,
+not results from the current question. No extra framework is required.
+
+The agent replaces old instructions and removes legacy schema text at runtime,
+including for existing `mini.parquet` files. No re-download or preparation is
+needed. Start events record the effective prompt and version. This is database
+exploration, not the standard schema-provided Spider setting. It is still prompted
+tool use, not enforced decoding. The inspector requires SQL execution, not just
+discovery calls; no model calls or repeated cache hits are manufactured.
+
+For a small first check, inside your GPU allocation:
+
+```bash
+bash scripts/check_tool.sh
+SPIDER_CACHE_DIR=$(mktemp -d /tmp/verl-spider-cache.XXXXXX)
+export HF_DATASETS_CACHE="$SPIDER_CACHE_DIR"
+SPIDER_VAL_SAMPLES=1 bash scripts/run.sh trace
+```
+
+This runs one question with two sampled rollouts. Omit `SPIDER_VAL_SAMPLES` for
+all prepared questions. The temporary dataset cache avoids the shared-filesystem
+locking error observed on Perlmutter; recreate it in each new allocation.
 
 ## Quick start
 
@@ -56,9 +80,9 @@ before launching; do not assume GPU 0 belongs to your allocation.
 `run.sh` uses one GPU and tensor parallelism of one. It
 processes one question per batch with two sampled rollouts, one agent worker,
 and at most two active inference sequences. Prompt and response budgets are 2048
-tokens each (4096 total); tool results shown to the model are capped at 2000
+and 8192 tokens respectively (10240 total); tool results shown to the model are capped at 6000
 characters by the pinned agent loop. The response budget includes tool messages
-and can end a trajectory before the five-call limit. The full bounded SQL result
+and can end a trajectory before the eleven-call limit. The full bounded SQL result
 is still recorded separately in the tool event.
 
 `setup.sh --prepare` also runs `prepare.py`; omitting `--prepare` installs only.
@@ -124,7 +148,7 @@ bash scripts/prepare.sh --database-root /absolute/path/to/database --limit 10
 ```
 
 Paths are recorded for the current machine, so run preparation on Perlmutter.
-The schema comes from the actual SQLite file. Gold SQL goes only to the reward
+The schema is discovered through tools reading the SQLite file. Gold SQL goes only to the reward
 metadata, never into the model prompt or tool response. Preparation verifies that
 gold queries execute within the tool's restrictions. It selects the first usable
 questions for one database; this is a debugging subset, not a medium/hard sample

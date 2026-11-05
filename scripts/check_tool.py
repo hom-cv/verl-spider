@@ -58,6 +58,28 @@ async def main():
             await tool.release(instance_id)
         trajectory.reset(token)
     print("PASS: SQL tool executed the parsed call and returned [[1]]", flush=True)
+    # Also validate schema discovery with actual registered tools and parser.
+    async def discover(name, arguments):
+        text = '<tool_call>' + json.dumps({"name": name, "arguments": arguments}) + '</tool_call>'
+        _, parsed = await parser.extract_tool_calls(tokenizer.encode(text, add_special_tokens=False))
+        if len(parsed) != 1 or parsed[0].name != name:
+            raise RuntimeError(f"Discovery parser failed for {name}")
+        tool = tools[name]
+        instance_id, _ = await tool.create(create_kwargs={"db_id": sources["db_id"]})
+        token = trajectory.set("synthetic-tool-check")
+        try:
+            response, _, _ = await tool.execute(instance_id, json.loads(parsed[0].arguments))
+            result = json.loads(response.text)
+            if not result.get("ok") or not result.get("tables"):
+                raise RuntimeError(f"Discovery failed: {name}: {result}")
+            print(f"PASS: {name}: {json.dumps(result)}", flush=True)
+            return result
+        finally:
+            await tool.release(instance_id)
+            trajectory.reset(token)
+
+    tables = await discover("list_tables", {})
+    await discover("get_table_schema", {"table_names": tables["tables"][:2]})
     print("Wiring check passed. This does not test whether the model chooses to call tools.")
 
 

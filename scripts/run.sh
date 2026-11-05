@@ -49,7 +49,8 @@ python -m verl.trainer.main_ppo \
   data.train_files="$REPO_ROOT/data/mini.parquet" \
   data.val_files="$REPO_ROOT/data/mini.parquet" \
   data.train_batch_size=1 data.val_batch_size=1 \
-  data.max_prompt_length=2048 data.max_response_length=2048 \
+  data.max_prompt_length=2048 data.max_response_length=8192 \
+  data.val_max_samples="${SPIDER_VAL_SAMPLES:--1}" \
   data.return_raw_chat=True data.filter_overlong_prompts=False data.truncation=error \
   actor_rollout_ref.model.path="$REPO_ROOT/models/qwen" \
   actor_rollout_ref.model.use_remove_padding=False \
@@ -65,7 +66,7 @@ python -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
   actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
   actor_rollout_ref.rollout.enforce_eager=True \
-  actor_rollout_ref.rollout.max_model_len=4096 \
+  actor_rollout_ref.rollout.max_model_len=10240 \
   actor_rollout_ref.rollout.max_num_batched_tokens=4096 \
   actor_rollout_ref.rollout.max_num_seqs=2 \
   actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
@@ -77,9 +78,9 @@ python -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.agent.agent_loop_config_path="$REPO_ROOT/config/agents.yaml" \
   actor_rollout_ref.rollout.multi_turn.enable=True \
   actor_rollout_ref.rollout.multi_turn.format=hermes \
-  actor_rollout_ref.rollout.multi_turn.max_assistant_turns=6 \
+  actor_rollout_ref.rollout.multi_turn.max_assistant_turns=12 \
   actor_rollout_ref.rollout.multi_turn.max_parallel_calls=1 \
-  actor_rollout_ref.rollout.multi_turn.max_tool_response_length=2000 \
+  actor_rollout_ref.rollout.multi_turn.max_tool_response_length=6000 \
   actor_rollout_ref.rollout.multi_turn.tool_config_path="$REPO_ROOT/config/tools.yaml" \
   custom_reward_function.path="$REPO_ROOT/spider_trace/reward.py" \
   custom_reward_function.name=compute_score \
