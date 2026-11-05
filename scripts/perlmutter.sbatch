@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=spider-trace
-#SBATCH --constraint=gpu&hbm80g
+#SBATCH --constraint=gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --gpus-per-node=4
-#SBATCH --cpus-per-task=128
-#SBATCH --qos=regular
+#SBATCH --gpus-per-node=1
+#SBATCH --cpus-per-task=32
+#SBATCH --qos=shared
 #SBATCH --time=00:45:00
 #SBATCH --output=slurm-%j.out
 set -euo pipefail

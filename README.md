@@ -5,7 +5,7 @@ Spider subset. The model can explain its approach, execute SQL, inspect results,
 revise SQL, and submit a final query. JSONL files preserve every assistant turn,
 executed SQL, returned result, elapsed time, and the complete token trajectory.
 
-Default: 10 validation questions from `concert_singer`, four sampled rollouts per
+Default: 10 validation questions from `concert_singer`, two sampled rollouts per
 question, up to five executed calls and a sixth assistant turn for the answer.
 Turn and token limits can terminate a trajectory earlier. Multiple calls are
 allowed, not forced. Qwen2.5 has no Qwen3 `enable_thinking` mode: any explanation
@@ -31,15 +31,17 @@ salloc --nodes 1 --qos interactive --time 01:00:00 --constraint gpu --gpus 1 --a
 # Creates the verl-spider Conda environment with Python 3.10 if missing.
 srun --ntasks=1 --cpu-bind=none bash scripts/setup.sh --prepare
 
-# Current launcher requires four GPUs; this will reject the one-GPU allocation.
-# Adapt the launcher for one GPU before using this command with the allocation above.
+# Launch the single-GPU experiment.
 srun --ntasks=1 --cpu-bind=none bash scripts/run.sh trace
 ```
 
-**Current limitation:** `scripts/run.sh` checks for four visible GPUs, uses tensor
-parallelism of two, and configures four trainer GPUs. The one-GPU allocation above
-works for setup/preparation, but cannot yet run this launcher. A one-GPU launch
-configuration and its memory requirements still need to be implemented and tested.
+`run.sh` expects exactly one visible GPU and uses tensor parallelism of one. It
+processes one question per batch with two sampled rollouts, one agent worker,
+and at most two active inference sequences. Prompt and response budgets are 2048
+tokens each (4096 total); tool results shown to the model are capped at 2000
+characters by the pinned agent loop. The response budget includes tool messages
+and can end a trajectory before the five-call limit. The full bounded SQL result
+is still recorded separately in the tool event.
 
 `setup.sh --prepare` also runs `prepare.py`; omitting `--prepare` installs only.
 Use `bash scripts/prepare.sh` to download/prepare later without manually activating
@@ -74,10 +76,13 @@ The GPU stack ships its CUDA runtime. Do not mix arbitrary CUDA libraries or
 an unrelated PyTorch installation into this environment. Driver compatibility
 must be checked on the allocated node if vLLM fails to initialize.
 
-The batch job requests **one node with four A100 80GB GPUs**, 45 minutes, and 128 logical
-CPUs. Adjust account/QOS/time to your allocation. This is a conservative starting
-configuration, not a measured minimum. Validation still initializes veRL's hybrid
-trainer/actor; it is not a lightweight standalone inference server.
+The optional batch job requests **one GPU**, 45 minutes, and 32 logical CPUs using
+the shared QOS. The interactive command above uses your requested interactive QOS.
+Ray uses at most four CPUs, bounded by the process CPU affinity. CPU parameter
+and optimizer offload, eager inference, and gradient checkpointing remain enabled.
+Validation still initializes veRL's hybrid trainer/actor; it is not a lightweight
+standalone inference server. GPU memory use has not yet been measured; a 40GB
+allocation may need further tuning, especially for GRPO.
 
 `setup.sh` pins veRL to release `v0.6.1`, vLLM 0.10.0 and PyTorch 2.7.1, installs
 this package, checks dependencies, and records resolved versions. It does not
@@ -173,10 +178,11 @@ srun --ntasks=1 --cpu-bind=none bash scripts/run.sh grpo
 sbatch --account=m4999 --export=ALL,MODE=grpo scripts/perlmutter.sbatch
 ```
 
-This validates first, then runs one GRPO step with four prompts and four rollouts
-per prompt. The same mini dataset supplies both training and validation solely
+This validates first, then runs one GRPO step with one prompt and two rollouts
+on one GPU. Training requires more memory than trace collection, and this mode
+has not been GPU-tested. The same mini dataset supplies both training and validation solely
 for debugging: scores must not be reported as held-out evaluation. Prepare at
-least four questions. No checkpoints are saved by default.
+least one question. No checkpoints are saved by default.
 
 The reward extracts `<final_sql>...</final_sql>` and compares execution results
 against gold SQL: 1 for equality, 0 otherwise. Unordered results use multisets,
