@@ -24,18 +24,27 @@ cd "$PSCRATCH"
 git clone https://github.com/hom-cv/verl-spider.git
 cd verl-spider
 
+# One-time setup and downloads on the login node, as in CS5470 HW1.
+# Creates the verl-spider Conda environment with Python 3.10 if missing.
+bash scripts/setup.sh --prepare
+
 # Request an interactive allocation.
 salloc --nodes 1 --qos interactive --time 01:00:00 --constraint gpu --gpus 1 --account m4999
 
-# One-time setup and downloads on the allocated node.
-# Creates the verl-spider Conda environment with Python 3.10 if missing.
-srun --ntasks=1 --cpu-bind=none bash scripts/setup.sh --prepare
-
 # Launch the single-GPU experiment.
-srun --ntasks=1 --cpu-bind=none bash scripts/run.sh trace
+bash scripts/run.sh trace
 ```
 
-`run.sh` expects exactly one visible GPU and uses tensor parallelism of one. It
+No `srun` or batch script is needed. This follows the
+[CS5470 homework workflow](https://github.com/jamalh110/CS5470_Assignment1).
+`salloc` still uses Slurm to reserve resources; do not run GPU work on a login node.
+The launcher preserves an existing single-GPU `CUDA_VISIBLE_DEVICES` binding;
+otherwise it selects the first GPU in `SLURM_JOB_GPUS`, or the first device in an
+existing visibility list. If neither is set and multiple GPUs are visible (for
+example after a separate SSH), set `CUDA_VISIBLE_DEVICES` to your assigned GPU
+before launching; do not assume GPU 0 belongs to your allocation.
+
+`run.sh` uses one GPU and tensor parallelism of one. It
 processes one question per batch with two sampled rollouts, one agent worker,
 and at most two active inference sequences. Prompt and response budgets are 2048
 tokens each (4096 total); tool results shown to the model are capped at 2000
@@ -46,13 +55,12 @@ is still recorded separately in the tool event.
 `setup.sh --prepare` also runs `prepare.py`; omitting `--prepare` installs only.
 Use `bash scripts/prepare.sh` to download/prepare later without manually activating
 the environment. On subsequent sessions, return to `$PSCRATCH/verl-spider`, request
-an allocation, and run the same `srun` command. `run.sh` activates `verl-spider` itself.
+an allocation, and run `bash scripts/run.sh trace`. `run.sh` activates `verl-spider` itself.
 The interactive allocation remains reserved after the script finishes; exit its
 shell when finished. No `sbatch` file is needed for this workflow.
 
-The first setup and downloads may consume most of the allocation. If it expires,
-request another allocation and rerun setup; completed package installations and
-downloads can be reused. To activate the environment manually on the cluster:
+Complete setup and downloads before reserving the GPU. To activate the
+environment manually on the cluster:
 
 ```bash
 module load conda
@@ -172,7 +180,7 @@ Record the SQLite/environment version and database hash for comparisons.
 
 ```bash
 # Inside your interactive allocation:
-srun --ntasks=1 --cpu-bind=none bash scripts/run.sh grpo
+bash scripts/run.sh grpo
 
 # Or submit a batch job:
 sbatch --account=m4999 --export=ALL,MODE=grpo scripts/perlmutter.sbatch

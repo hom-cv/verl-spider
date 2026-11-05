@@ -5,7 +5,8 @@ REPO_ROOT="$PWD"
 MODE="${1:-trace}"
 [[ "$MODE" == trace || "$MODE" == grpo ]] || { echo 'Usage: bash scripts/run.sh [trace|grpo]'; exit 1; }
 source scripts/conda_env.sh
-: "${SLURM_JOB_ID:?Request GPUs with salloc, then launch with srun bash scripts/run.sh trace}"
+source scripts/select_gpu.sh
+RUN_LABEL="${SLURM_JOB_ID:-direct}-${MODE}"
 for required in data/sources.json data/mini.parquet models/qwen/config.json; do
   [[ -f "$required" ]] || { echo "Missing $required. Run bash scripts/prepare.sh first." >&2; exit 1; }
 done
@@ -14,14 +15,17 @@ import json
 from pathlib import Path
 import torch
 from spider_trace.sql import database_path
-assert torch.cuda.is_available(), 'No CUDA GPU visible. Launch using srun inside the allocation.'
-assert torch.cuda.device_count() == 1, 'This configuration expects exactly one visible GPU; request --gpus 1.'
+assert torch.cuda.is_available(), 'No CUDA GPU visible. Run on your allocated GPU node, not the login node.'
+assert torch.cuda.device_count() == 1, (
+    'Multiple GPUs visible and no usable allocation binding. Set CUDA_VISIBLE_DEVICES '
+    'to the GPU assigned to your allocation, then rerun. Do not guess GPU 0.'
+)
 sources = json.loads(Path('data/sources.json').read_text())
 database_path(sources['database_root'], sources['db_id'])
 gpu = torch.cuda.get_device_properties(0)
 print(f'GPU preflight: {gpu.name}, {gpu.total_memory / 2**30:.1f} GiB')
 PY
-export RUN_DIR="$REPO_ROOT/runs/${SLURM_JOB_ID}-${MODE}-$(date +%Y%m%d-%H%M%S)"
+export RUN_DIR="$REPO_ROOT/runs/${RUN_LABEL}-$(date +%Y%m%d-%H%M%S)"
 export TRACE_DIR="$RUN_DIR/events"
 export SPIDER_DB_ROOT
 SPIDER_DB_ROOT=$(python -c 'import json; print(json.load(open("data/sources.json"))["database_root"])')
@@ -80,7 +84,7 @@ python -m verl.trainer.main_ppo \
   custom_reward_function.path="$REPO_ROOT/spider_trace/reward.py" \
   custom_reward_function.name=compute_score \
   trainer.logger='[console]' trainer.project_name=verl-spider \
-  trainer.experiment_name="${SLURM_JOB_ID}-${MODE}" \
+  trainer.experiment_name="$RUN_LABEL" \
   trainer.nnodes=1 trainer.n_gpus_per_node=1 \
   trainer.val_only="$VAL_ONLY" trainer.val_before_train=True \
   trainer.total_epochs=1 trainer.total_training_steps=1 \
