@@ -10,6 +10,7 @@ from datasets import Dataset, load_dataset
 from huggingface_hub import HfApi, snapshot_download
 
 from spider_trace.sql import connect, execute_query, find_validation_database_root
+from spider_trace.prompts import TOOL_PROTOCOL
 
 SYSTEM = """You are a SQL assistant. Solve the question using the supplied SQLite schema.
 Explain your plan briefly, then call execute_sql to test your query before submitting.
@@ -18,6 +19,7 @@ Use one read-only query per call, deterministic expressions, and explicit ORDER 
 with unique tie breakers when selecting a limited number of rows. Do not use random
 or time functions. End with your answer query in <final_sql>...</final_sql>.
 Do not invent tool results. You may make at most five tool calls."""
+SYSTEM += "\n\n" + TOOL_PROTOCOL
 
 
 def main():

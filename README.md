@@ -11,6 +11,15 @@ Turn and token limits can terminate a trajectory earlier. Multiple calls are
 allowed, not forced. Qwen2.5 has no Qwen3 `enable_thinking` mode: any explanation
 is ordinary generated assistant text.
 
+The `sql-tools-v2` prompt explicitly requires a real `<tool_call>` before the
+final SQL answer and shows the JSON syntax. The agent applies this instruction
+at runtime, including to existing `mini.parquet` files, so no re-download or
+preparation is needed after updating. The effective prompt and its version are
+recorded in start events. This is a prompted tool-use smoke test, not enforced
+decoding: a model can still skip the tool, and the inspector rejects runs with
+zero executed tools. No SQL is automatically executed from a final answer and
+no repeated calls are inserted to manufacture cache hits.
+
 ## Quick start
 
 SSH to Perlmutter and clone into scratch. The interactive allocation below uses
