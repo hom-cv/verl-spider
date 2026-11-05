@@ -161,6 +161,25 @@ truncation, path traversal, duplicate rows, and ordering in rewards.
 GPU installation and the end-to-end Slurm run have not been executed in the
 development workspace. The first Perlmutter run is an integration smoke test.
 
+## Transfer without GitHub
+
+From the local repository, create a portable Git bundle and transfer it:
+
+```bash
+git bundle create ../verl-spider-traces.bundle --all
+scp ../verl-spider-traces.bundle <username>@perlmutter.nersc.gov:verl-spider-traces.bundle
+```
+
+On Perlmutter, clone the bundle into scratch, then follow the setup commands above:
+
+```bash
+git clone "$HOME/verl-spider-traces.bundle" "$PSCRATCH/verl-spider-traces"
+cd "$PSCRATCH/verl-spider-traces"
+```
+
+The bundle includes committed code only. It excludes model weights, datasets,
+environments, and traces, which the preparation and job scripts create locally.
+
 ## References
 
 - [veRL v0.6.1 agent loop](https://github.com/verl-project/verl/blob/v0.6.1/verl/experimental/agent_loop/tool_agent_loop.py)
