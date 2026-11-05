@@ -5,8 +5,9 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from spider_trace.sql import database_path, execute_query
+
 from spider_trace.reward import compute_score
+from spider_trace.sql import database_path, execute_query
 
 
 class SQLTests(unittest.TestCase):

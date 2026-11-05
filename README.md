@@ -13,23 +13,37 @@ is ordinary generated assistant text.
 
 ## Quick start
 
-Publish this local Git repository to your Git hosting service, then clone it into
-Perlmutter scratch. Replace `<repository-url>` and `<nersc-account>` below.
+SSH to Perlmutter and clone into scratch. Replace `<nersc-account>` below.
+Install and download once, then request GPUs for each run.
 
 ```bash
 cd "$PSCRATCH"
-git clone <repository-url> verl-spider-traces
-cd verl-spider-traces
+git clone https://github.com/hom-cv/verl-spider.git
+cd verl-spider
 
 # Use a Python 3.10 environment on Perlmutter.
 module load conda
 conda create -p "$PSCRATCH/spider-python310" python=3.10 -y
 conda activate "$PSCRATCH/spider-python310"
-bash scripts/setup.sh
-source .venv/bin/activate
-python scripts/prepare.py
+bash scripts/setup.sh --prepare
 
-# Submit from this directory; account is supplied explicitly.
+# Request an interactive allocation, then launch on its compute node.
+salloc --account=<nersc-account> --constraint='gpu&hbm80g' \
+  --nodes=1 --ntasks=1 --cpus-per-task=128 --gpus-per-node=4 \
+  --qos=interactive --time=01:00:00
+srun --ntasks=1 --cpu-bind=none bash scripts/run.sh trace
+```
+
+`setup.sh --prepare` also runs `prepare.py`; omitting `--prepare` installs only.
+Use `bash scripts/prepare.sh` to download/prepare later without manually activating
+the environment. On subsequent sessions, return to `$PSCRATCH/verl-spider`, request
+an allocation, and run the same `srun` command. `run.sh` activates `.venv` itself.
+The interactive allocation remains reserved after the script finishes; exit its
+shell when finished. No `sbatch` file is needed for this workflow.
+
+Alternatively submit a batch job from the repository root:
+
+```bash
 sbatch --account=<nersc-account> scripts/perlmutter.sbatch
 ```
 
@@ -40,7 +54,7 @@ The GPU stack ships its CUDA runtime. Do not mix arbitrary CUDA libraries or
 an unrelated PyTorch installation into this environment. Driver compatibility
 must be checked on the allocated node if vLLM fails to initialize.
 
-The job requests **one node with four A100 80GB GPUs**, 45 minutes, and 128 logical
+The batch job requests **one node with four A100 80GB GPUs**, 45 minutes, and 128 logical
 CPUs. Adjust account/QOS/time to your allocation. This is a conservative starting
 configuration, not a measured minimum. Validation still initializes veRL's hybrid
 trainer/actor; it is not a lightweight standalone inference server.
@@ -64,7 +78,7 @@ data. Model weights and datasets are excluded from this repository.
 If you already have the official Spider database directory:
 
 ```bash
-python scripts/prepare.py --database-root /absolute/path/to/database --limit 10
+bash scripts/prepare.sh --database-root /absolute/path/to/database --limit 10
 ```
 
 Paths are recorded for the current machine, so run preparation on Perlmutter.
@@ -131,6 +145,10 @@ Record the SQLite/environment version and database hash for comparisons.
 ## Optional one-step GRPO test
 
 ```bash
+# Inside your interactive allocation:
+srun --ntasks=1 --cpu-bind=none bash scripts/run.sh grpo
+
+# Or submit a batch job:
 sbatch --account=<nersc-account> --export=ALL,MODE=grpo scripts/perlmutter.sbatch
 ```
 

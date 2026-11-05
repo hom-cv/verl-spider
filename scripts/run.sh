@@ -2,14 +2,32 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO_ROOT="$PWD"
-source .venv/bin/activate
-: "${SLURM_JOB_ID:?Run inside a GPU Slurm allocation}"
 MODE="${1:-trace}"
 [[ "$MODE" == trace || "$MODE" == grpo ]] || { echo 'Usage: bash scripts/run.sh [trace|grpo]'; exit 1; }
+[[ -f .venv/bin/activate ]] || { echo 'Run bash scripts/setup.sh --prepare first.' >&2; exit 1; }
+source .venv/bin/activate
+: "${SLURM_JOB_ID:?Request GPUs with salloc, then launch with srun bash scripts/run.sh trace}"
+for required in data/sources.json data/mini.parquet models/qwen/config.json; do
+  [[ -f "$required" ]] || { echo "Missing $required. Run bash scripts/prepare.sh first." >&2; exit 1; }
+done
+python - <<'PY'
+import json
+from pathlib import Path
+import torch
+from spider_trace.sql import database_path
+assert torch.cuda.is_available(), 'No CUDA GPU visible. Launch using srun inside the allocation.'
+assert torch.cuda.device_count() >= 4, 'This configuration requires four visible GPUs.'
+sources = json.loads(Path('data/sources.json').read_text())
+database_path(sources['database_root'], sources['db_id'])
+print('GPU preflight:', [torch.cuda.get_device_name(i) for i in range(4)])
+PY
 export RUN_DIR="$REPO_ROOT/runs/${SLURM_JOB_ID}-${MODE}-$(date +%Y%m%d-%H%M%S)"
 export TRACE_DIR="$RUN_DIR/events"
 export SPIDER_DB_ROOT
 SPIDER_DB_ROOT=$(python -c 'import json; print(json.load(open("data/sources.json"))["database_root"])')
+if [[ "$MODE" == grpo ]]; then
+  python -c 'import pyarrow.parquet as pq; assert pq.read_metadata("data/mini.parquet").num_rows >= 4, "GRPO requires at least four prepared questions"'
+fi
 export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 export HF_HUB_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
