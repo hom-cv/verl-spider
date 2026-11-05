@@ -9,15 +9,14 @@ case "${1:-}" in
   *) echo 'Usage: bash scripts/setup.sh [--prepare [prepare.py arguments]]' >&2; exit 2 ;;
 esac
 [[ $(uname -s) == Linux ]] || { echo 'GPU installation requires Linux (run on Perlmutter).'; exit 1; }
-python3 -c 'import sys; assert sys.version_info[:2] == (3, 10), "Activate a Python 3.10 environment first"'
-python3 -m venv .venv
-source .venv/bin/activate
+source scripts/conda_env.sh --create
 python -m pip install --upgrade 'pip==25.1.1' 'setuptools==80.9.0' wheel
 python -m pip install -r requirements-gpu.txt
 python -m pip install -e .
 python -m pip check
 mkdir -p runs
 python -m pip freeze > runs/environment.freeze.txt
+conda env export > runs/environment.conda.yaml
 python -m unittest discover -s tests -v
 if [[ "$PREPARE" == true ]]; then
   python scripts/prepare.py "$@"

@@ -14,32 +14,47 @@ is ordinary generated assistant text.
 ## Quick start
 
 SSH to Perlmutter and clone into scratch. Replace `<nersc-account>` below.
-Install and download once, then request GPUs for each run.
+Use a dedicated Conda environment named `verl-spider` for this project; your
+existing `sysml` environment is not modified. The scripts load the Conda module
+and activate the project environment automatically.
 
 ```bash
 cd "$PSCRATCH"
 git clone https://github.com/hom-cv/verl-spider.git
 cd verl-spider
 
-# Use a Python 3.10 environment on Perlmutter.
-module load conda
-conda create -p "$PSCRATCH/spider-python310" python=3.10 -y
-conda activate "$PSCRATCH/spider-python310"
-bash scripts/setup.sh --prepare
-
-# Request an interactive allocation, then launch on its compute node.
+# Request an interactive allocation.
 salloc --account=<nersc-account> --constraint='gpu&hbm80g' \
   --nodes=1 --ntasks=1 --cpus-per-task=128 --gpus-per-node=4 \
   --qos=interactive --time=01:00:00
+
+# One-time setup and downloads on the allocated node.
+# Creates the verl-spider Conda environment with Python 3.10 if missing.
+srun --ntasks=1 --cpu-bind=none bash scripts/setup.sh --prepare
+
+# Launch the experiment.
 srun --ntasks=1 --cpu-bind=none bash scripts/run.sh trace
 ```
 
 `setup.sh --prepare` also runs `prepare.py`; omitting `--prepare` installs only.
 Use `bash scripts/prepare.sh` to download/prepare later without manually activating
 the environment. On subsequent sessions, return to `$PSCRATCH/verl-spider`, request
-an allocation, and run the same `srun` command. `run.sh` activates `.venv` itself.
+an allocation, and run the same `srun` command. `run.sh` activates `verl-spider` itself.
 The interactive allocation remains reserved after the script finishes; exit its
 shell when finished. No `sbatch` file is needed for this workflow.
+
+The first setup and downloads may consume most of the allocation. If it expires,
+request another allocation and rerun setup; completed package installations and
+downloads can be reused. To activate the environment manually on the cluster:
+
+```bash
+module load conda
+conda activate verl-spider
+```
+
+Set `SPIDER_CONDA_ENV` to use a different dedicated environment name; use the same
+value for setup, preparation and launch. The default named environment location
+is controlled by your Conda configuration. No nested Python virtualenv is created.
 
 Alternatively submit a batch job from the repository root:
 
@@ -99,6 +114,7 @@ runs/<job-id>-trace-<timestamp>/
   job.log
   sources.json                    # exact data/model revisions and database hash
   environment.freeze.txt
+  environment.conda.yaml
   repo-revision.txt
   gpus.txt
 ```

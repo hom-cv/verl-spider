@@ -4,8 +4,7 @@ cd "$(dirname "$0")/.."
 REPO_ROOT="$PWD"
 MODE="${1:-trace}"
 [[ "$MODE" == trace || "$MODE" == grpo ]] || { echo 'Usage: bash scripts/run.sh [trace|grpo]'; exit 1; }
-[[ -f .venv/bin/activate ]] || { echo 'Run bash scripts/setup.sh --prepare first.' >&2; exit 1; }
-source .venv/bin/activate
+source scripts/conda_env.sh
 : "${SLURM_JOB_ID:?Request GPUs with salloc, then launch with srun bash scripts/run.sh trace}"
 for required in data/sources.json data/mini.parquet models/qwen/config.json; do
   [[ -f "$required" ]] || { echo "Missing $required. Run bash scripts/prepare.sh first." >&2; exit 1; }
@@ -37,6 +36,7 @@ export OMP_NUM_THREADS=4
 mkdir -p "$TRACE_DIR"
 cp data/sources.json "$RUN_DIR/sources.json"
 python -m pip freeze > "$RUN_DIR/environment.freeze.txt"
+conda env export > "$RUN_DIR/environment.conda.yaml"
 git rev-parse HEAD > "$RUN_DIR/repo-revision.txt"
 nvidia-smi > "$RUN_DIR/gpus.txt"
 VAL_ONLY=True
