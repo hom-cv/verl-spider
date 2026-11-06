@@ -1,29 +1,33 @@
+import sqlite3
+import tempfile
 import unittest
+from pathlib import Path
 
-from spider_trace.prompts import TOOL_PROTOCOL, with_tool_protocol
+from spider_trace.prompts import build_messages, question_from_messages, tool_bindings
 
 
 class PromptTests(unittest.TestCase):
-    def test_protocol_requires_generated_sql_in_real_call(self):
-        self.assertIn("EXACT SQL you generated", TOOL_PROTOCOL)
-        self.assertIn("arguments.sql", TOOL_PROTOCOL)
-        self.assertIn('"name":"execute_sql"', TOOL_PROTOCOL)
-        self.assertIn("wait for the actual tool result", TOOL_PROTOCOL)
+    def test_single_prompt_contains_real_schema_and_protocol(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = Path(directory) / "tiny.sqlite"
+            with sqlite3.connect(db) as conn:
+                conn.execute("CREATE TABLE singers(id INTEGER PRIMARY KEY)")
+            messages = build_messages("Count singers", db)
+            text = messages[0]["content"]
+            for expected in ("Task Overview:", "CREATE TABLE singers", "<sql>",
+                             "<observation>", "<solution>", "50 rows"):
+                self.assertIn(expected, text)
+            self.assertNotIn("<tool_call>", text)
+            self.assertNotIn("{db_details}", text)
+            self.assertEqual(build_messages(question_from_messages(messages), db), messages)
 
-    def test_upgrades_existing_data_without_mutation(self):
-        original = [{"role": "system", "content": "SQL instructions"},
-                    {"role": "user", "content": "Count singers"}]
-        upgraded = with_tool_protocol(original)
-        self.assertIn(TOOL_PROTOCOL, upgraded[0]["content"])
-        self.assertEqual(original[0]["content"], "SQL instructions")
-        self.assertEqual(upgraded[1], original[1])
+    def test_legacy_question_extraction(self):
+        messages = [{"role": "user", "content": "Schema:\nold schema\n\nQuestion: Count singers"}]
+        self.assertEqual(question_from_messages(messages), "Count singers")
+        self.assertIn("old schema", messages[0]["content"])
+        with self.assertRaises(ValueError):
+            question_from_messages([{"role": "user", "content": "Schema:\nbroken"}])
 
-    def test_idempotent_for_newly_prepared_data(self):
-        messages = [{"role": "system", "content": TOOL_PROTOCOL}]
-        self.assertEqual(with_tool_protocol(messages), messages)
-
-    def test_adds_missing_system_message(self):
-        messages = [{"role": "user", "content": "Count singers"}]
-        upgraded = with_tool_protocol(messages)
-        self.assertEqual(upgraded[0], {"role": "system", "content": TOOL_PROTOCOL})
-        self.assertEqual(upgraded[1:], messages)
+    def test_only_sql_tool_is_bound(self):
+        self.assertEqual(tool_bindings("tiny"), {
+            "execute_sql": {"create_kwargs": {"db_id": "tiny"}}})

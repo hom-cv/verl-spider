@@ -9,7 +9,7 @@ from pathlib import Path
 from datasets import Dataset, load_dataset
 from huggingface_hub import HfApi, snapshot_download
 
-from spider_trace.exploration import SYSTEM, tool_bindings
+from spider_trace.prompts import build_messages, tool_bindings
 from spider_trace.sql import execute_query, find_validation_database_root
 
 
@@ -65,8 +65,7 @@ def main():
         if not gold["ok"] or gold["truncated"]:
             continue
         rows.append({"data_source": "spider_smoke", "agent_name": "spider_agent", "ability": "sql",
-                     "prompt": [{"role": "system", "content": SYSTEM},
-                                {"role": "user", "content": f"Question: {item['question']}"}],
+                     "prompt": build_messages(item["question"], dbpath),
                      "reward_model": {"style": "rule", "ground_truth": json.dumps({
                          "db_id": args.db_id, "sql": item["query"],
                          "ordered": bool(re.search(r"\border\s+by\b", item["query"], re.I))})},

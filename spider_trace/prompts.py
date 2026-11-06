@@ -1,40 +1,92 @@
-"""Versioned instructions shared by preparation and runtime rollout prompts."""
+"""The single prompt source for both data preparation and live rollouts.
 
-PROMPT_VERSION = "sql-tools-v3"
-TOOL_PROTOCOL = """Mandatory SQL verification protocol:
-Your task is to GENERATE AND EXECUTE SQL, not merely write a query.
-1. Generate a read-only SQL query that answers the user's question using its schema.
-2. In that SAME response, call execute_sql with the EXACT SQL you generated as the
-   value of arguments.sql. Do not just describe the call or print a SQL code block.
-3. Stop after the tool call and wait for the actual tool result.
-4. Inspect the result. If the query failed or needs correction, generate revised
-   SQL and call execute_sql with that revised SQL. After a successful result,
-   submit the verified query in <final_sql>...</final_sql>.
+Adapted from the user-provided SkySQL example; SQL tags are executable actions.
+"""
+from spider_trace.sql import connect
 
-Your first response MUST contain an actual <tool_call> block. A brief plan before
-the block is optional. Do not wrap the block in Markdown backticks.
-For example, ONLY IF your generated query is SELECT COUNT(*) FROM singer;, call:
-<tool_call>
-{"name":"execute_sql","arguments":{"sql":"SELECT COUNT(*) FROM singer;"}}
-</tool_call>
-For every other query, replace the example SQL with YOUR generated query. Use valid
-JSON and escape any double quotes inside the SQL string. Never execute the example
-query unless it answers the current question.
-Stop immediately after </tool_call> and wait for the real tool response.
-Saying "let's execute" or "I will run this" does NOT execute a tool. You must emit
-the <tool_call> block containing the SQL, not end your response with that promise.
-Do not emit <final_sql> in the same response as your first tool call.
-Never invent tool results. Do not repeat a successful call merely to use a tool."""
+PROMPT_VERSION = "sql-paper-v5"
+SYSTEM_TEMPLATE = """Task Overview:
+You are a data science expert. Below, you are provided with a database schema and
+a natural language question. Understand the schema and generate a valid SQL query
+to answer the question within limited turns. Break down the problem, explain your
+approach briefly, and generate the solution.
+
+Database Engine: SQLite
+Database Schema:
+{db_details}
+This schema describes tables, columns, primary keys, foreign keys, and relationships.
+External Knowledge: {external_knowledge}
+Question: {question}
+
+Instructions:
+1. Output only the information asked in the question. Include no extra SELECT columns.
+2. Return all requested information, without missing or extra information.
+3. Before the final query, analyze the question, check relevant relationships,
+   verify your query with the SQL tool, and refine any errors using real results.
+4. Only read-only queries are allowed. Use deterministic expressions and explicit
+   ORDER BY with unique tie breakers for LIMIT. Do not use random or time functions.
+
+Format:
+1. Put a brief explanation inside <think>...</think> after receiving new information.
+2. Call the SQL tool using a single <sql>your SQL</sql> block to explore or verify.
+   This block executes SQL; a Markdown code block does not. Stop after </sql> and
+   wait for the actual result. Never generate an observation yourself.
+3. Tool output is a text table inside <observation>...</observation>, capped at
+   50 rows and a character limit. Errors and truncation are explicitly indicated.
+   Use the observation to refine the query when needed.
+4. When no further exploration is needed or you reach the turn limit, provide
+   the final SQL inside <solution>...</solution>. A solution block does not call
+   the tool. There are at most 12 assistant turns (11 calls plus a final answer),
+   subject to token limits. Do not repeat queries just to produce calls.
+
+------------------------ START OF EXAMPLE ------------------------
+This is a format demonstration, not data from the current question's database.
+Question: how many pigs are in the farm?
+Database Schema:
+Table: animals
+- id (INTEGER, PRIMARY KEY)
+- species (TEXT)
+- age (INTEGER)
+- name (TEXT)
+<think>I will count animals whose species is pig and verify the query.</think>
+<sql>SELECT COUNT(*) FROM animals WHERE species = 'pig';</sql>
+<observation>
+| COUNT(*) |
+| --- |
+| 12 |
+</observation>
+<think>The result contains 12 pigs. The verified query answers the question.</think>
+<solution>SELECT COUNT(*) FROM animals WHERE species = 'pig';</solution>
+------------------------ END OF EXAMPLE ------------------------
+Now solve the actual question above using its database, not the example database.
+"""
 
 
-def with_tool_protocol(messages):
-    """Copy messages and upgrade old prepared prompts without rewriting data."""
-    result = [dict(message) for message in messages]
-    for message in result:
-        if message.get("role") == "system":
-            if TOOL_PROTOCOL not in message["content"]:
-                message["content"] += "\n\n" + TOOL_PROTOCOL
-            break
-    else:
-        result.insert(0, {"role": "system", "content": TOOL_PROTOCOL})
-    return result
+def build_messages(question, db_path, external_knowledge="None provided."):
+    conn = connect(db_path)
+    try:
+        schema = "\n".join(row[0] for row in conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' "
+            "AND name NOT LIKE 'sqlite_%' ORDER BY name"))
+    finally:
+        conn.close()
+    return [{"role": "system", "content": SYSTEM_TEMPLATE.format(
+        db_details=schema, external_knowledge=external_knowledge, question=question)},
+        {"role": "user", "content": "Question: " + question}]
+
+
+def question_from_messages(messages):
+    """Accept both original schema-bearing rows and newer question-only rows."""
+    users = [m["content"] for m in messages if m.get("role") == "user"]
+    if len(users) != 1:
+        raise ValueError("Expected one prepared question")
+    content = users[0]
+    if content.startswith("Schema:\n"):
+        if "\n\nQuestion: " not in content:
+            raise ValueError("Legacy prompt is missing its question separator")
+        return content.split("\n\nQuestion: ", 1)[1]
+    return content.removeprefix("Question: ")
+
+
+def tool_bindings(db_id):
+    return {"execute_sql": {"create_kwargs": {"db_id": db_id}}}

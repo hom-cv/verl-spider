@@ -77,7 +77,7 @@ python -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.agent.num_workers=1 \
   actor_rollout_ref.rollout.agent.agent_loop_config_path="$REPO_ROOT/config/agents.yaml" \
   actor_rollout_ref.rollout.multi_turn.enable=True \
-  actor_rollout_ref.rollout.multi_turn.format=hermes \
+  actor_rollout_ref.rollout.multi_turn.format=sql \
   actor_rollout_ref.rollout.multi_turn.max_assistant_turns=12 \
   actor_rollout_ref.rollout.multi_turn.max_parallel_calls=1 \
   actor_rollout_ref.rollout.multi_turn.max_tool_response_length=6000 \

@@ -61,6 +61,9 @@ class SQLTests(unittest.TestCase):
     def test_reward_duplicates_order_and_truncation(self):
         with patch.dict(os.environ, SPIDER_DB_ROOT=str(self.root)):
             gold = json.dumps({"db_id": "tiny", "sql": "SELECT name FROM t", "ordered": False})
+            self.assertEqual(compute_score("", "<solution>SELECT name FROM t</solution>", gold), 1)
+            self.assertEqual(compute_score("", "<sql>SELECT name FROM t</sql>", gold), 0)
+            self.assertEqual(compute_score("", "<solution>SELECT name FROM t</final_sql>", gold), 0)
             self.assertEqual(compute_score("", "<final_sql>SELECT name FROM t ORDER BY id DESC</final_sql>", gold), 1)
             self.assertEqual(compute_score("", "<final_sql>SELECT DISTINCT name FROM t</final_sql>", gold), 0)
             self.assertEqual(compute_score("", "no final answer", gold), 0)

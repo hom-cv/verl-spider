@@ -11,25 +11,21 @@ Turn and token limits can terminate a trajectory earlier. Multiple calls are
 allowed, not forced. Qwen2.5 has no Qwen3 `enable_thinking` mode: any explanation
 is ordinary generated assistant text.
 
-The `sql-explore-v4` prompt supplies only the question, not the actual database
-schema. The tools are `list_tables`, `get_table_schema(table_names)`, and
-`execute_sql(sql)`. The discovery tools return sorted names and CREATE TABLE
-definitions from the same read-only database. All tools are bound to the sample's
-database; the model cannot choose a filesystem path.
-
-The prompt demonstrates discovery, a query, a real-result message, and a final
-answer, adapting the interaction structure of the
+The single prompt source is `spider_trace/prompts.py` (`sql-paper-v5`). It supplies
+the database schema and question, adapting the interaction structure of the
 [VerlTool SkySQL prompt](https://github.com/TIGER-AI-Lab/verl-tool/blob/main/examples/data_preprocess/skysql/sql.py).
-Our format remains `<tool_call>` JSON and `<final_sql>`, not their `<sql>` and
-`<solution>` tags. The example observations are clearly labeled demonstrations,
-not results from the current question. No extra framework is required.
+The model uses `<think>` for brief explanations, `<sql>` to execute a query, and
+`<solution>` for its final query. The SQL-tag parser dispatches only explicit SQL
+actions to `execute_sql`, bound to the sample's read-only database. Results appear
+as text tables inside `<observation>`, capped at 50 rows and a character limit.
+Generation stops at `</sql>` so the tool can return a real observation. This does
+not force a tool call. Example observations are labeled demonstrations.
 
-The agent replaces old instructions and removes legacy schema text at runtime,
-including for existing `mini.parquet` files. No re-download or preparation is
-needed. Start events record the effective prompt and version. This is database
-exploration, not the standard schema-provided Spider setting. It is still prompted
-tool use, not enforced decoding. The inspector requires SQL execution, not just
-discovery calls; no model calls or repeated cache hits are manufactured.
+The agent rebuilds the prompt at runtime, including for existing `mini.parquet`
+files; no re-download or preparation is needed. Start events record the effective
+prompt and version. The previous exploration prompt and discovery tool registrations
+have been removed. The inspector still requires real SQL execution; no model calls
+or repeated cache hits are manufactured.
 
 For a small first check, inside your GPU allocation:
 
@@ -225,7 +221,8 @@ has not been GPU-tested. The same mini dataset supplies both training and valida
 for debugging: scores must not be reported as held-out evaluation. Prepare at
 least one question. No checkpoints are saved by default.
 
-The reward extracts `<final_sql>...</final_sql>` and compares execution results
+The reward extracts `<solution>...</solution>` (also accepting legacy `<final_sql>`)
+and compares execution results
 against gold SQL: 1 for equality, 0 otherwise. Unordered results use multisets,
 preserving duplicates; ordered gold results use sequence equality. Truncated or
 failed results receive zero. This is a deliberately limited smoke-test reward,
