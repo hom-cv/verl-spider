@@ -14,14 +14,14 @@ python - <<'PY'
 import json
 from pathlib import Path
 import torch
-from spider_trace.sql import database_path
+from spider_trace.provenance import verify_database
 assert torch.cuda.is_available(), 'No CUDA GPU visible. Run on your allocated GPU node, not the login node.'
 assert torch.cuda.device_count() == 1, (
     'Multiple GPUs visible and no usable allocation binding. Set CUDA_VISIBLE_DEVICES '
     'to the GPU assigned to your allocation, then rerun. Do not guess GPU 0.'
 )
 sources = json.loads(Path('data/sources.json').read_text())
-database_path(sources['database_root'], sources['db_id'])
+verify_database(sources)
 gpu = torch.cuda.get_device_properties(0)
 print(f'GPU preflight: {gpu.name}, {gpu.total_memory / 2**30:.1f} GiB')
 PY
@@ -37,10 +37,11 @@ export VLLM_USE_V1=1
 export OMP_NUM_THREADS=1
 RAY_CPUS=$(python -c 'import os; print(min(4, len(os.sched_getaffinity(0))))')
 mkdir -p "$TRACE_DIR"
+read -r MAX_ASSISTANT_TURNS TOOL_RESPONSE_CHARS PROMPT_TOKENS RESPONSE_TOKENS CONTEXT_TOKENS < <(python -m spider_trace.limits)
+python -m spider_trace.provenance "$RUN_DIR"
 cp data/sources.json "$RUN_DIR/sources.json"
 python -m pip freeze > "$RUN_DIR/environment.freeze.txt"
 conda env export > "$RUN_DIR/environment.conda.yaml"
-git rev-parse HEAD > "$RUN_DIR/repo-revision.txt"
 nvidia-smi > "$RUN_DIR/gpus.txt"
 VAL_ONLY=True
 [[ "$MODE" == trace ]] || VAL_ONLY=False
@@ -49,7 +50,7 @@ python -m verl.trainer.main_ppo \
   data.train_files="$REPO_ROOT/data/mini.parquet" \
   data.val_files="$REPO_ROOT/data/mini.parquet" \
   data.train_batch_size=1 data.val_batch_size=1 \
-  data.max_prompt_length=2048 data.max_response_length=8192 \
+  data.max_prompt_length="$PROMPT_TOKENS" data.max_response_length="$RESPONSE_TOKENS" \
   data.val_max_samples="${SPIDER_VAL_SAMPLES:--1}" \
   data.return_raw_chat=True data.filter_overlong_prompts=False data.truncation=error \
   actor_rollout_ref.model.path="$REPO_ROOT/models/qwen" \
@@ -66,7 +67,7 @@ python -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
   actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
   actor_rollout_ref.rollout.enforce_eager=True \
-  actor_rollout_ref.rollout.max_model_len=10240 \
+  actor_rollout_ref.rollout.max_model_len="$CONTEXT_TOKENS" \
   actor_rollout_ref.rollout.max_num_batched_tokens=4096 \
   actor_rollout_ref.rollout.max_num_seqs=2 \
   actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
@@ -78,9 +79,9 @@ python -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.agent.agent_loop_config_path="$REPO_ROOT/config/agents.yaml" \
   actor_rollout_ref.rollout.multi_turn.enable=True \
   actor_rollout_ref.rollout.multi_turn.format=sql \
-  actor_rollout_ref.rollout.multi_turn.max_assistant_turns=12 \
+  actor_rollout_ref.rollout.multi_turn.max_assistant_turns="$MAX_ASSISTANT_TURNS" \
   actor_rollout_ref.rollout.multi_turn.max_parallel_calls=1 \
-  actor_rollout_ref.rollout.multi_turn.max_tool_response_length=6000 \
+  actor_rollout_ref.rollout.multi_turn.max_tool_response_length="$TOOL_RESPONSE_CHARS" \
   actor_rollout_ref.rollout.multi_turn.tool_config_path="$REPO_ROOT/config/tools.yaml" \
   custom_reward_function.path="$REPO_ROOT/spider_trace/reward.py" \
   custom_reward_function.name=compute_score \

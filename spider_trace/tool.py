@@ -9,6 +9,7 @@ from verl.tools.schemas import ToolResponse
 from spider_trace.events import emit
 from spider_trace.sql import database_path, execute_query
 from spider_trace.sql_protocol import format_observation
+from spider_trace.limits import TOOL_MAX_ROWS, TOOL_RESULT_CHARS
 
 
 class SQLiteTool(BaseTool):
@@ -25,7 +26,8 @@ class SQLiteTool(BaseTool):
         return instance_id, ToolResponse()
 
     def run_query(self, path, parameters):
-        return execute_query(path, parameters.get("sql"), max_rows=50)
+        return execute_query(path, parameters.get("sql"),
+                             max_rows=TOOL_MAX_ROWS, max_chars=TOOL_RESULT_CHARS)
 
     async def execute(self, instance_id, parameters, **kwargs):
         db_id, path = self.instances[instance_id]

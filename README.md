@@ -205,6 +205,22 @@ be ambiguous. The prompt asks for ordering with unique tie breakers; inspect the
 generated queries before using these traces for cache-correctness research.
 Record the SQLite/environment version and database hash for comparisons.
 
+The launcher now verifies the database hash against `data/sources.json` and rejects
+WAL sidecars before starting the run. Do not modify the database during a run.
+Each run captures `manifest.json` (database, dataset and source hashes plus SQLite
+version), Git status/diff, and a `source/` snapshot including new/uncommitted runtime
+code. This records the actual local implementation, not just its last commit.
+
+Limits live in `spider_trace/limits.py` and are shared by the prompt, tool and
+launcher. This is not a guarantee of arbitrary SQL determinism; cache evaluation
+still requires a fixed database and an explicit policy for unordered results.
+
+The trace inspector validates **each trajectory**: start/complete records, no error
+event, a successful untruncated SQL execution, aligned response masks, and a final
+solution matching a prior successful SQL call exactly (outer whitespace ignored).
+Equivalent rewrites are intentionally not inferred. An empty answer now fails,
+even after a successful tool call. These are protocol checks, not Spider accuracy.
+
 ## Optional one-step GRPO test
 
 ```bash
@@ -238,11 +254,20 @@ python3 -m unittest discover -s tests -v
 bash -n scripts/setup.sh scripts/run.sh scripts/perlmutter.sbatch
 ```
 
-The SQL/reward tests require only Python's standard library. They cover repeated
+The local tests use Python's standard library (provenance tests also use Git). They cover repeated
 queries, writes, nondeterministic functions, multiple statements, recursion bounds,
 truncation, path traversal, duplicate rows, and ordering in rewards.
-GPU installation and the end-to-end Slurm run have not been executed in the
-development workspace. The first Perlmutter run is an integration smoke test.
+They also cover missing final answers, failed tools, trace masks, database hashes,
+dirty source snapshots, and inserted message boundaries.
+
+`bash scripts/check_tool.sh` additionally exercises the real pinned veRL state
+machine with the saved Qwen tokenizer and real SQLite tool. Only model generation
+is scripted: it tests a successful two-turn exchange and rejection of an empty
+final answer. It needs the installed environment and prepared files, but no model
+weights are loaded and no GPU allocation is required. Diagnostic events remain
+under `runs/diagnostics`, separate from model-generated evaluation traces.
+The full diagnostic and GPU rollout must be run on Perlmutter; the development
+workspace does not have the veRL/model environment.
 
 ## Transfer without GitHub
 

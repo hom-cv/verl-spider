@@ -3,6 +3,7 @@
 Adapted from the user-provided SkySQL example; SQL tags are executable actions.
 """
 from spider_trace.sql import connect
+from spider_trace.limits import MAX_ASSISTANT_TURNS, TOOL_MAX_ROWS
 
 PROMPT_VERSION = "sql-paper-v5"
 SYSTEM_TEMPLATE = """Task Overview:
@@ -32,11 +33,11 @@ Format:
    This block executes SQL; a Markdown code block does not. Stop after </sql> and
    wait for the actual result. Never generate an observation yourself.
 3. Tool output is a text table inside <observation>...</observation>, capped at
-   50 rows and a character limit. Errors and truncation are explicitly indicated.
+   {max_rows} rows and a character limit. Errors and truncation are explicitly indicated.
    Use the observation to refine the query when needed.
 4. When no further exploration is needed or you reach the turn limit, provide
    the final SQL inside <solution>...</solution>. A solution block does not call
-   the tool. There are at most 12 assistant turns (11 calls plus a final answer),
+   the tool. There are at most {max_turns} assistant turns ({max_calls} calls plus a final answer),
    subject to token limits. Do not repeat queries just to produce calls.
 
 ------------------------ START OF EXAMPLE ------------------------
@@ -71,7 +72,9 @@ def build_messages(question, db_path, external_knowledge="None provided."):
     finally:
         conn.close()
     return [{"role": "system", "content": SYSTEM_TEMPLATE.format(
-        db_details=schema, external_knowledge=external_knowledge, question=question)},
+        db_details=schema, external_knowledge=external_knowledge, question=question,
+        max_rows=TOOL_MAX_ROWS, max_turns=MAX_ASSISTANT_TURNS,
+        max_calls=MAX_ASSISTANT_TURNS - 1)},
         {"role": "user", "content": "Question: " + question}]
 
 

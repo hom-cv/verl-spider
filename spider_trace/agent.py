@@ -5,9 +5,17 @@ from uuid import uuid4
 from verl.experimental.agent_loop.tool_agent_loop import AgentState, ToolAgentLoop
 
 from spider_trace.events import emit, trajectory
-from spider_trace.prompts import PROMPT_VERSION, build_messages, question_from_messages, tool_bindings
+from spider_trace.prompts import (
+    PROMPT_VERSION,
+    build_messages,
+    question_from_messages,
+    tool_bindings,
+)
 from spider_trace.sql import database_path
-from spider_trace.sql_parser import SQLBlockParser  # Registers the sql parser before class initialization.
+from spider_trace.sql_protocol import close_assistant_turn
+from spider_trace.sql_parser import (
+    SQLBlockParser,  # Registers the sql parser before class initialization.
+)
 
 
 class TracedSQLAgent(ToolAgentLoop):
@@ -53,4 +61,8 @@ class TracedSQLAgent(ToolAgentLoop):
         emit("assistant", turn=agent_data.assistant_turns,
              text=self.tokenizer.decode(agent_data.response_ids, skip_special_tokens=False),
              next_state=state.name)
+        if state == AgentState.PROCESSING_TOOLS:
+            # The </sql> stop string cuts generation before Qwen's <|im_end|>.
+            # Close that message before veRL appends the tool-response message.
+            close_assistant_turn(agent_data, self.tokenizer.eos_token_id)
         return state

@@ -20,7 +20,7 @@ conda env export > runs/environment.conda.yaml
 python -m unittest discover -s tests -v
 if [[ "$PREPARE" == true ]]; then
   python scripts/prepare.py "$@"
-  echo 'Ready. Inside a GPU allocation: srun --ntasks=1 --cpu-bind=none bash scripts/run.sh trace'
+  echo 'Ready. Inside a GPU allocation: bash scripts/run.sh trace'
 else
   echo 'Installed. Next: bash scripts/prepare.sh'
 fi

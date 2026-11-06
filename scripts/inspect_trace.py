@@ -2,6 +2,7 @@ import argparse
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
+from spider_trace.trace_validation import validate_trajectory
 
 parser = argparse.ArgumentParser()
 parser.add_argument("directory", type=Path)
@@ -17,10 +18,17 @@ print(dict(counts))
 tool_counts = Counter(e.get("tool_name", "execute_sql")
                       for events in groups.values() for e in events if e["event"] == "tool")
 print("Tools:", dict(tool_counts))
+failures = 0
 for key, events in groups.items():
     print(key, "tool_calls=", sum(e["event"] == "tool" for e in events))
+    errors = validate_trajectory(events)
+    failures += bool(errors)
+    print("  FAIL: " + "; ".join(errors) if errors else "  PASS: verified final SQL")
     if args.trajectory == key:
         for event in sorted(events, key=lambda e: e["timestamp_ns"]):
             print(json.dumps(event, indent=2))
-if not counts["complete"] or not tool_counts["execute_sql"]:
-    raise SystemExit("Trace check failed: expected completed trajectories and executed SQL (not just discovery)")
+if args.trajectory and args.trajectory not in groups:
+    raise SystemExit("Requested trajectory was not found")
+if not groups or failures:
+    raise SystemExit(f"Trace check failed: {failures}/{len(groups)} invalid trajectories (empty runs also fail)")
+print(f"Trace check passed: {len(groups)} valid trajectories. This does not establish answer correctness.")

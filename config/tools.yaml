@@ -6,7 +6,7 @@ tools:
       type: function
       function:
         name: execute_sql
-        description: Execute one read-only SQLite query against this question's database. Returns a text table or error inside observation tags. Results are capped at 50 rows and a character limit.
+        description: Execute one read-only SQLite query against this question's database. Returns a text table or error inside observation tags, subject to the row and character limits specified in the task.
         parameters:
           type: object
           properties:
