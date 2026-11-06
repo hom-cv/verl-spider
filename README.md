@@ -193,6 +193,13 @@ required by the default run.
 
 ## SQL behavior and determinism
 
+Keep `actor_rollout_ref.rollout.free_cache_engine=True` in this hybrid setup,
+including trace-only runs. vLLM starts with dummy weights and the manager's
+wake-up path transfers the real actor weights before generation. Disabling this
+flag to avoid sleep/wake transitions can skip that transfer and produce nonsense.
+The earlier between-batch CUDA failure remains unresolved; first verify coherent
+output with `SPIDER_VAL_SAMPLES=1 bash scripts/run.sh trace` on an 80 GB GPU.
+
 The tool opens an existing database read-only and uses SQLite's authorizer to
 allow reads and a short function allowlist. Writes, ATTACH, PRAGMA, multiple
 statements, random/time functions, and extension loading are denied. It applies a
