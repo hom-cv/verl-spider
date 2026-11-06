@@ -44,7 +44,13 @@ python -m pip freeze > "$RUN_DIR/environment.freeze.txt"
 conda env export > "$RUN_DIR/environment.conda.yaml"
 nvidia-smi > "$RUN_DIR/gpus.txt"
 VAL_ONLY=True
-[[ "$MODE" == trace ]] || VAL_ONLY=False
+# Trace-only diagnostic: avoid sleep/wake transitions between validation batches.
+# Keep the inference cache resident; this may increase GPU memory usage.
+FREE_CACHE_ENGINE=False
+if [[ "$MODE" == grpo ]]; then
+  VAL_ONLY=False
+  FREE_CACHE_ENGINE=True
+fi
 python -m verl.trainer.main_ppo \
   algorithm.adv_estimator=grpo \
   data.train_files="$REPO_ROOT/data/mini.parquet" \
@@ -67,6 +73,7 @@ python -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
   actor_rollout_ref.rollout.gpu_memory_utilization=0.5 \
   actor_rollout_ref.rollout.enforce_eager=True \
+  actor_rollout_ref.rollout.free_cache_engine="$FREE_CACHE_ENGINE" \
   actor_rollout_ref.rollout.max_model_len="$CONTEXT_TOKENS" \
   actor_rollout_ref.rollout.max_num_batched_tokens=4096 \
   actor_rollout_ref.rollout.max_num_seqs=2 \
