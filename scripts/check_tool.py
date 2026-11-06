@@ -48,7 +48,16 @@ async def check_agent_flow(root, tokenizer, sources, output):
                 assert sampling_params["stop"] == ["</sql>"]
                 text = "<sql>SELECT 1 AS probe;</sql>"
             elif self.calls == 1:
-                assert "</sql>" + tokenizer.eos_token in prompt, "Missing assistant boundary"
+                first_turn = "<sql>SELECT 1 AS probe;</sql>"
+                observation = "<observation>\n| probe |\n| --- |\n| 1 |\n</observation>"
+                expected = tokenizer.apply_chat_template([
+                    {"role": "system", "content": "SQL assistant."},
+                    {"role": "user", "content": "Return one."},
+                    {"role": "assistant", "content": first_turn},
+                    {"role": "tool", "content": observation},
+                ], tokenize=False, add_generation_prompt=True)
+                assert prompt[prompt.rindex(first_turn):] == expected[expected.index(first_turn):], (
+                    "Conversation boundary/observation differs from tokenizer chat template")
                 assert "<observation>\n| probe |\n| --- |\n| 1 |" in prompt, "Missing actual result"
                 assert prompt.endswith("<|im_start|>assistant\n"), "Missing assistant turn"
                 text = ("" if self.empty_final else "<solution>SELECT 1 AS probe;</solution>") + tokenizer.eos_token

@@ -63,6 +63,10 @@ class TracedSQLAgent(ToolAgentLoop):
              next_state=state.name)
         if state == AgentState.PROCESSING_TOOLS:
             # The </sql> stop string cuts generation before Qwen's <|im_end|>.
-            # Close that message before veRL appends the tool-response message.
-            close_assistant_turn(agent_data, self.tokenizer.eos_token_id)
+            # Match Qwen's full boundary, including the newline before the next role.
+            if self.tokenizer.eos_token is None:
+                raise ValueError("SQL tool turns require a tokenizer message-end token")
+            boundary_ids = self.tokenizer.encode(
+                self.tokenizer.eos_token + "\n", add_special_tokens=False)
+            close_assistant_turn(agent_data, boundary_ids)
         return state
