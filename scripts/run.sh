@@ -49,11 +49,13 @@ if [[ "$MODE" == grpo ]]; then
 fi
 # Hybrid vLLM starts with dummy weights. Keep the manager's wake-up path enabled:
 # it synchronizes actual actor weights before generation, even in trace mode.
+# Validation uses one whole-dataset batch (null), avoiding between-batch sleep/wake
+# cycles. vLLM still limits concurrent sequences to max_num_seqs=2 below.
 python -m verl.trainer.main_ppo \
   algorithm.adv_estimator=grpo \
   data.train_files="$REPO_ROOT/data/mini.parquet" \
   data.val_files="$REPO_ROOT/data/mini.parquet" \
-  data.train_batch_size=1 data.val_batch_size=1 \
+  data.train_batch_size=1 data.val_batch_size=null \
   data.max_prompt_length="$PROMPT_TOKENS" data.max_response_length="$RESPONSE_TOKENS" \
   data.val_max_samples="${SPIDER_VAL_SAMPLES:--1}" \
   data.return_raw_chat=True data.filter_overlong_prompts=False data.truncation=error \

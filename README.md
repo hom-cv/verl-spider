@@ -180,9 +180,18 @@ contain the full bounded tool output; veRL may further truncate what the model
 sees, which can be inspected in the completed token stream. Errors and unfinished
 trajectories remain distinguishable.
 
-The inspector fails if there are no completed trajectories or no executed tools;
-inspect per-trajectory call counts too. It does not assert that every model
-response uses tools. Copy durable traces off scratch to your project's CFS.
+By default the inspector checks trace integrity: empty runs, incomplete
+trajectories, error events, missing assistant events, and invalid token masks fail.
+SQL tool records must include their tool/database identity, consistent arguments,
+result or error details, and finite nonnegative execution time. Broken traces
+are marked protocol **not evaluated** and excluded from the model-protocol rate.
+Missing final answers, failed SQL, and no tool calls are reported as unsuccessful
+model protocol outcomes, not infrastructure failures. All events are preserved;
+the inspector never deletes or rewrites them. Real tool calls from unsuccessful
+rollouts remain available for cache evaluation. Protocol success is not SQL answer
+correctness, and reward scores are reported separately by veRL.
+Use `--strict` to also fail on unsuccessful protocol outcomes (for wiring checks).
+Copy durable traces off scratch to your project's CFS.
 
 JSONL is the default trace format so no tracking server is required. veRL's
 optional MLflow tracing can be enabled by adding
