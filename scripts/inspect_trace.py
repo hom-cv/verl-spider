@@ -19,6 +19,9 @@ print(dict(counts))
 tool_counts = Counter(e.get("tool_name", "execute_sql")
                       for events in groups.values() for e in events if e["event"] == "tool")
 print("Tools:", dict(tool_counts))
+cache_counts = Counter(e.get("cache", {}).get("status", "unrecorded")
+                       for events in groups.values() for e in events if e["event"] == "tool")
+print("Cache:", dict(cache_counts))
 failures = 0
 protocol_failures = 0
 protocol_evaluated = 0

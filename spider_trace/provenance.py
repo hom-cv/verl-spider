@@ -1,6 +1,7 @@
 """Verify prepared inputs and capture the code actually used by a run."""
 import hashlib
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -58,6 +59,10 @@ def record_run(root, destination):
         target.write_bytes(data)
         hashes[str(relative)] = hashlib.sha256(data).hexdigest()
     manifest = {"database_sha256": database_hash,
+                "cache": {"mode": os.environ.get("SPIDER_CACHE_MODE", "off"),
+                          "host": os.environ.get("SPIDER_CACHE_HOST", "127.0.0.1"),
+                          "port": os.environ.get("SPIDER_CACHE_PORT", "7878"),
+                          "namespace": os.environ.get("SPIDER_CACHE_NAMESPACE", "spider-sql-v1")},
                 "dataset_sha256": sha256(root / "data/mini.parquet"),
                 "sqlite_version": sqlite3.sqlite_version, "source_sha256": hashes}
     (destination / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")

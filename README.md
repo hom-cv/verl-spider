@@ -1,5 +1,81 @@
 # veRL Spider traces on Perlmutter
 
+## Optional TVCache integration
+
+Caching is **off by default**. This read-only workload uses TVClient's direct
+value API, not sandbox snapshots. Install the local TVClient checkout in the
+same Python environment as veRL (adjust the path if it is not a sibling repo):
+
+```bash
+python -m pip install -e ../tvclient
+```
+
+Start the Rust server in a separate terminal on the same compute node as the
+single-GPU run:
+
+```bash
+cd ../tvcache-rust
+cargo run --release -- --eviction-policy=none
+```
+
+The current server binds all interfaces on port 7878 and has no authentication;
+use only a trusted, access-controlled environment. Do not expose it publicly.
+Disabling eviction is for bounded comparison runs, not an unbounded service.
+
+From this repo, test the real server without a GPU or model:
+
+```bash
+PYTHONPATH=. python scripts/check_cache.py
+```
+
+Then run the agent with caching enabled:
+
+```bash
+export SPIDER_CACHE_MODE=tvcache
+export SPIDER_CACHE_HOST=127.0.0.1
+export SPIDER_CACHE_PORT=7878
+export SPIDER_CACHE_NAMESPACE=spider-comparison-001
+bash scripts/run.sh trace
+```
+
+Use `SPIDER_CACHE_MODE=off bash scripts/run.sh trace` for the baseline. A new
+namespace starts a logically empty cache without deleting anyone else's entries;
+reuse that namespace and server for a warm run. Different sampled model runs are
+not a controlled fixed-workload speed comparison: compare identical calls for
+latency claims. A CPU-only serial replay runner is provided:
+
+```bash
+PYTHONPATH=. python scripts/replay_cache.py /path/to/downloaded/run /path/to/concert_singer.sqlite --repetitions 20
+```
+
+It verifies the database hash and exact results against the original tool events,
+then measures direct, cold-cache, and warm-cache passes over every recorded call
+(including unsuccessful model trajectories). A fresh namespace per repetition
+isolates cold passes; direct placement alternates before/after each cold/warm pair.
+SQLite and thread pools are warmed first. Connections and database hashing are
+excluded; the same connection is reused within each repetition, with concurrency 1.
+`runs/cache-replay/<id>/` contains per-call JSONL, summary JSON and an SVG chart.
+Pass times sum measured tool operations, not setup or trace-writing overhead.
+These measurements are not model rollout timings or confidence intervals.
+
+Cache identities contain the immutable database SHA-256, SQLite version, SQL
+implementation hash, output limits, namespace, and exact serialized arguments.
+No SQL normalization is performed. Do not change databases while runs are active;
+file changes and WAL/journal sidecars are rejected. Successful results (including
+explicitly truncated results) are cached; SQL errors are preserved but not cached.
+Cache/server errors fail the trajectory instead of silently falling back.
+
+Each rollout has its own connection. Requests on it are serialized; separate
+rollouts may both miss on the same in-flight query (no cross-rollout single-flight).
+Sessions are closed when veRL releases the tool instance.
+
+Tool events add `cache.status` (`off`, `miss`, `hit`), cache identity, lookup time,
+and actual SQL execution time (zero on hits). `execution_ms` still measures the
+whole tool operation, including lookup/insert overhead, but excludes one-time
+database hashing at instance creation. The run manifest records cache settings.
+For full-run comparisons use rollout elapsed times too; a high hit rate alone
+does not demonstrate speedup, especially for millisecond SQLite queries.
+
 Run Qwen2.5-Coder-7B-Instruct through veRL's asynchronous tool agent loop on a small
 Spider subset. The model can explain its approach, execute SQL, inspect results,
 revise SQL, and submit a final query. JSONL files preserve every assistant turn,
